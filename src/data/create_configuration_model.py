@@ -39,5 +39,11 @@ if __name__ == '__main__':
     #                     'data/graphs/confmodel/ms_academic_cs/ms_academic_cs_confmodel')
     # generate_multiple_conf_models('data/graphs/processed/ms_academic_phy/ms_academic_phy.cites',
     #                     'data/graphs/confmodel/ms_academic_phy/ms_academic_phy_confmodel')
-    generate_multiple_conf_models('data/graphs/processed/wiki_cs/wiki_cs.cites',
-                        'data/graphs/confmodel/wiki_cs/wiki_cs_confmodel')
+    # generate_multiple_conf_models('data/graphs/processed/wiki_cs/wiki_cs.cites',
+    #                     'data/graphs/confmodel/wiki_cs/wiki_cs_confmodel')
+    # generate_multiple_conf_models('data/graphs/processed/chameleon/chameleon.cites',
+    #                     'data/graphs/confmodel/chameleon/chameleon_confmodel')
+    # generate_multiple_conf_models('data/graphs/processed/actor/actor.cites',
+    #                     'data/graphs/confmodel/actor/actor_confmodel')
+    generate_multiple_conf_models('data/graphs/processed/squirrel/squirrel.cites',
+                        'data/graphs/confmodel/squirrel/squirrel_confmodel')

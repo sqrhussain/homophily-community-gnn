@@ -5,19 +5,20 @@ import torch.nn.functional as F
 import numpy as np
 
 class MonoGAT(torch.nn.Module):
-    def __init__(self,dataset,channels,heads=1,dropout=0.6,attention_dropout=0.3):
+    def __init__(self,data,channels,heads=1,dropout=0.6,attention_dropout=0.3, concat=True):
         super(MonoGAT,self).__init__()
-        channels = [dataset.num_node_features] + channels + [dataset.num_classes]
+        channels = [data.x.shape[1]] + channels + [len(set([x.item() for x in data.y]))]
         
         self.dropout = dropout
         self.attention_dropout = attention_dropout
+        self.concat = concat
         
         self.conv = []
         for i in range(1,len(channels)):
             if i == 1:
                 conv = GATConv(channels[i-1],channels[i],heads=heads,dropout=self.attention_dropout)
             elif i == len(channels)-1:
-                if dataset.name=='PubMed':
+                if not concat:
                     conv = GATConv(channels[i-1]*heads,channels[i],heads=heads,concat=False,dropout=self.attention_dropout)
                 else:
                     conv = GATConv(channels[i-1]*heads,channels[i],dropout=self.attention_dropout)
@@ -43,14 +44,14 @@ class MonoGAT(torch.nn.Module):
     
 
 class BiGAT(torch.nn.Module):
-    def __init__(self,dataset,channels,heads=1,dropout=0.6,attention_dropout=0.3):
+    def __init__(self,data,channels,heads=1,dropout=0.6,attention_dropout=0.3):
         super(BiGAT,self).__init__()
         self.conv_st = []
         self.conv_ts = []
         self.dropout = dropout
         self.attention_dropout = attention_dropout
-        channels_output = [dataset.num_node_features] + [c*2*heads for c in channels]
-        channels = [dataset.num_node_features] + channels
+        channels_output = [data.x.shape[1]] + [c*2*heads for c in channels]
+        channels = [data.x.shape[1]] + channels
         for i in range(len(channels)-1):
             conv_st = GATConv(channels_output[i], channels[i+1],heads=heads,dropout=self.attention_dropout)
             self.add_module('conv_st'+str(i),conv_st)
@@ -61,9 +62,9 @@ class BiGAT(torch.nn.Module):
             self.conv_ts.append(conv_ts)
         
         if dataset.name=='PubMed':
-            self.last = GATConv(channels_output[-1], dataset.num_classes,heads=heads,concat=False,dropout=self.attention_dropout)
+            self.last = GATConv(channels_output[-1], len(set([x.item() for x in data.y])),heads=heads,concat=False,dropout=self.attention_dropout)
         else:
-            self.last = GATConv(channels_output[-1], dataset.num_classes,dropout=self.attention_dropout)
+            self.last = GATConv(channels_output[-1], len(set([x.item() for x in data.y])),dropout=self.attention_dropout)
         
     def forward(self, data): 
         x, edge_index = data.x, data.edge_index
@@ -84,8 +85,8 @@ class BiGAT(torch.nn.Module):
     
 
 class ASYMGAT(BiGAT):
-    def __init__(self,dataset,channels,heads=1,dropout=0.6,attention_dropout=0.3):
-        super(ASYMGAT,self).__init__(dataset,channels,heads,dropout,attention_dropout)
+    def __init__(self,data,channels,heads=1,dropout=0.6,attention_dropout=0.3):
+        super(ASYMGAT,self).__init__(data,channels,heads,dropout,attention_dropout)
         
     def forward(self, data): 
         x, edge_index = data.x, data.edge_index
@@ -105,15 +106,15 @@ class ASYMGAT(BiGAT):
         return x
 
 class TriGAT(torch.nn.Module):
-    def __init__(self,dataset,channels,heads=1,dropout=0.6,attention_dropout=0.3):
+    def __init__(self,data,channels,heads=1,dropout=0.6,attention_dropout=0.3):
         super(TriGAT,self).__init__()
         self.conv_st = []
         self.conv_ts = []
         self.conv = []
         self.dropout = dropout
         self.attention_dropout = attention_dropout
-        channels_output = [dataset.num_node_features] + [c*3*heads for c in channels]
-        channels = [dataset.num_node_features] + channels
+        channels_output = [data.x.shape[1]] + [c*3*heads for c in channels]
+        channels = [data.x.shape[1]] + channels
         for i in range(len(channels)-1):
             conv_st = GATConv(channels_output[i], channels[i+1],heads=heads,dropout=self.attention_dropout)
             self.add_module('conv_st'+str(i),conv_st)
@@ -128,9 +129,9 @@ class TriGAT(torch.nn.Module):
             self.conv.append(conv)
         
         if dataset.name=='PubMed':
-            self.last = GATConv(channels_output[-1], dataset.num_classes,heads=heads,concat=False,dropout=self.attention_dropout)
+            self.last = GATConv(channels_output[-1], len(set([x.item() for x in data.y])),heads=heads,concat=False,dropout=self.attention_dropout)
         else:
-            self.last = GATConv(channels_output[-1], dataset.num_classes,dropout=self.attention_dropout)
+            self.last = GATConv(channels_output[-1], len(set([x.item() for x in data.y])),dropout=self.attention_dropout)
         
     def forward(self, data): 
         x, edge_index = data.x, data.edge_index
@@ -152,8 +153,8 @@ class TriGAT(torch.nn.Module):
 
 
 class pASYMGAT(TriGAT):
-    def __init__(self,dataset,channels,heads=1,dropout=0.6,attention_dropout=0.3):
-        super(pASYMGAT,self).__init__(dataset,channels,heads,dropout,attention_dropout)
+    def __init__(self,data,channels,heads=1,dropout=0.6,attention_dropout=0.3):
+        super(pASYMGAT,self).__init__(data,channels,heads,dropout,attention_dropout)
         
     def forward(self, data): 
         x, edge_index = data.x, data.edge_index

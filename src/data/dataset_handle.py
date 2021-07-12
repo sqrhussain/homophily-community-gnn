@@ -9,6 +9,7 @@ import pandas as pd
 import csv
 import numpy as np
 import json
+from torch_geometric.datasets import Actor, WikipediaNetwork
 
 
 def create_citation_dataset(dataset_name, url, target_tmp_file, dir_path, target_processed_path,
@@ -329,10 +330,78 @@ def create_wiki_cs():
 
 
 
+def create_actor():
+    dataset_name = 'actor'
+    dir_path = 'data/graphs/raw'
+    target_processed = 'data/graphs/processed'
+
+    if not os.path.exists(dir_path + '/' + dataset_name):
+        os.mkdir(dir_path + '/' + dataset_name)
+
+    actor = Actor(root=dir_path+'/'+dataset_name)
+
+    if not os.path.exists(f'{target_processed}/{dataset_name}'):
+        os.mkdir(f'{target_processed}/{dataset_name}')
+
+    with open(f'{target_processed}/{dataset_name}/{dataset_name}.cites','w') as outfile:
+        for e in actor[0].edge_index.T:
+            outfile.write(str(e[0].item()) + ' ' + str(e[1].item()) + '\n')
+
+    with open(f'{target_processed}/{dataset_name}/{dataset_name}.content','w') as outfile:
+        for i in range(actor[0].y.shape[0]):
+            outfile.write(str(i) + ' ' + ' '.join([str(int(f.item())) for f in actor[0].x[i]])  + ' ' + str(int(actor[0].y[i].item())) + '\n')
+
+
+def create_chameleon():
+    dataset_name = 'chameleon'
+    dir_path = 'data/graphs/raw'
+    target_processed = 'data/graphs/processed'
+    
+    if not os.path.exists(dir_path + '/' + dataset_name):
+        os.mkdir(dir_path + '/' + dataset_name)
+
+    actor = WikipediaNetwork(root=dir_path+'/'+dataset_name,name='Chameleon')
+
+    if not os.path.exists(f'{target_processed}/{dataset_name}'):
+        os.mkdir(f'{target_processed}/{dataset_name}')
+
+
+    with open(f'{target_processed}/{dataset_name}/{dataset_name}.cites','w') as outfile:
+        for e in actor[0].edge_index.T:
+            outfile.write(str(e[0].item()) + ' ' + str(e[1].item()) + '\n')
+
+    with open(f'{target_processed}/{dataset_name}/{dataset_name}.content','w') as outfile:
+        for i in range(actor[0].y.shape[0]):
+            outfile.write(str(i) + ' ' + ' '.join([str(int(f.item())) for f in actor[0].x[i]])  + ' ' + str(int(actor[0].y[i].item())) + '\n')
+
+def create_squirrel():
+    dataset_name = 'squirrel'
+    dir_path = 'data/graphs/raw'
+    target_processed = 'data/graphs/processed'
+    
+    if not os.path.exists(dir_path + '/' + dataset_name):
+        os.mkdir(dir_path + '/' + dataset_name)
+
+    actor = WikipediaNetwork(root=dir_path+'/'+dataset_name,name='Squirrel')
+
+    if not os.path.exists(f'{target_processed}/{dataset_name}'):
+        os.mkdir(f'{target_processed}/{dataset_name}')
+
+
+    with open(f'{target_processed}/{dataset_name}/{dataset_name}.cites','w') as outfile:
+        for e in actor[0].edge_index.T:
+            outfile.write(str(e[0].item()) + ' ' + str(e[1].item()) + '\n')
+
+    with open(f'{target_processed}/{dataset_name}/{dataset_name}.content','w') as outfile:
+        for i in range(actor[0].y.shape[0]):
+            outfile.write(str(i) + ' ' + ' '.join([str(int(f.item())) for f in actor[0].x[i]])  + ' ' + str(int(actor[0].y[i].item())) + '\n')
 
 
 if __name__ == '__main__':
-    create_wiki_cs()
+    # create_actor()
+    # create_chameleon()
+    create_squirrel()
+    # create_wiki_cs()
     # create_jigsaw_graph('validation_knn_40')
     # create_webkb_small()
     #create_cornell()

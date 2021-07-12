@@ -3,7 +3,7 @@ from src.models.gat_models import MonoGAT#, BiGAT, TriGAT
 from src.models.rgcn_models import MonoRGCN, RGCN2
 from src.models.appnp_model import MonoAPPNPModel
 from src.models.multi_layered_model import MonoModel#, BiModel, TriModel
-from torch_geometric.nn import GCNConv, SAGEConv, GATConv, RGCNConv, SGConv, APPNP
+from torch_geometric.nn import GCNConv, SAGEConv, GATConv, RGCNConv, SGConv, APPNP, ClusterGCNConv
 from src.data.data_loader import GraphDataset
 import warnings
 import pandas as pd
@@ -11,7 +11,12 @@ import os
 import argparse
 import numpy as np
 import pickle
+import torch
 from src.evaluation.network_split import NetworkSplitShchur
+from src.data.create_modified_configuration_model import generate_modified_conf_model
+from torch_geometric.utils import from_networkx, to_networkx
+from community import best_partition
+import networkx as nx
 
 def parse_args():
 
@@ -36,10 +41,18 @@ def parse_args():
                         type=bool,
                         default=False,
                         help='Is configuration model evaluation. Default is False.')
+    parser.add_argument('--shifting',
+                        type=bool,
+                        default=False,
+                        help='Is shifting evaluation. Default is False.')
     parser.add_argument('--sbm',
                         type=bool,
                         default=False,
                         help='Is SBM evaluation. Default is False.')
+    parser.add_argument('--sbm_label',
+                        type=bool,
+                        default=False,
+                        help='Is SBM_label evaluation. Default is False.')
     parser.add_argument('--flipped',
                         type=bool,
                         default=False,
@@ -103,45 +116,45 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-name2conv = {'gcn': GCNConv, 'sage': SAGEConv, 'gat': GATConv, 'rgcn': RGCNConv, 'rgcn2':RGCN2, 'sgc':SGConv, 'appnp':APPNP}
+name2conv = {'gcn': GCNConv, 'sage': SAGEConv, 'gat': GATConv, 'rgcn': RGCNConv, 'rgcn2':RGCN2, 'sgc':SGConv, 'appnp':APPNP, 'cgcn':ClusterGCNConv}
 
-def eval_archs_gat(dataset, channel_size, dropout, lr, wd, heads,attention_dropout,runs,splits,train_examples,val_examples, models=[MonoGAT],isDirected = False):
+def eval_archs_gat(dataset, dataset_name, channel_size, dropout, lr, wd, heads,attention_dropout,runs,splits,train_examples,val_examples, models=[MonoGAT],isDirected = False):
     if isDirected:
         models = [MonoGAT]
-    return eval_gnn(dataset, GATConv, channel_size, dropout, lr, wd, heads=heads, attention_dropout=attention_dropout,
+    return eval_gnn(dataset, dataset_name, GATConv, channel_size, dropout, lr, wd, heads=heads, attention_dropout=attention_dropout,
                       models=models, num_runs=runs, num_splits=splits, test_score=True,
                       train_examples = train_examples, val_examples = val_examples)
 
 
-def eval_archs_gcn(dataset, conv, channel_size, dropout, lr, wd, runs,splits,train_examples,val_examples, models=[MonoModel], isDirected=False):
+def eval_archs_gcn(dataset, dataset_name, conv, channel_size, dropout, lr, wd, runs,splits,train_examples,val_examples, models=[MonoModel], isDirected=False):
     if isDirected:
         models = [MonoModel]
-    return eval_gnn(dataset, conv, channel_size, dropout, lr, wd, heads=1,attention_dropout=0.3, # dummy values for heads and attention_dropout
+    return eval_gnn(dataset, dataset_name, conv, channel_size, dropout, lr, wd, heads=1,attention_dropout=0.3, # dummy values for heads and attention_dropout
                       models=models, num_runs=runs, num_splits=splits,test_score=True,
                       train_examples = train_examples, val_examples = val_examples)
 
 
-def eval_archs_appnp(dataset, conv, channel_size, dropout, lr, wd, runs,splits,train_examples,val_examples, models=[MonoAPPNPModel]):
-    return eval_gnn(dataset, conv, channel_size, dropout, lr, wd, heads=1,attention_dropout=0.3, # dummy values for heads and attention_dropout
+def eval_archs_appnp(dataset, dataset_name, conv, channel_size, dropout, lr, wd, runs,splits,train_examples,val_examples, models=[MonoAPPNPModel]):
+    return eval_gnn(dataset, dataset_name, conv, channel_size, dropout, lr, wd, heads=1,attention_dropout=0.3, # dummy values for heads and attention_dropout
                       models=models, num_runs=runs, num_splits=splits,test_score=True,
                       train_examples = train_examples, val_examples = val_examples)
 
-def eval_archs_rgcn(dataset, conv, channel_size, dropout, lr, wd, runs,splits,train_examples,val_examples, models=[MonoRGCN]):
-    return eval_gnn(dataset, conv, channel_size, dropout, lr, wd, heads=1,attention_dropout=0.3,  # dummy values for heads and attention_dropout
+def eval_archs_rgcn(dataset, dataset_name, conv, channel_size, dropout, lr, wd, runs,splits,train_examples,val_examples, models=[MonoRGCN]):
+    return eval_gnn(dataset, dataset_name, conv, channel_size, dropout, lr, wd, heads=1,attention_dropout=0.3,  # dummy values for heads and attention_dropout
                       models=models, num_runs=runs, num_splits=splits,test_score=True,
                       train_examples = train_examples, val_examples = val_examples)
 
 
 
-def eval(model, dataset, channel_size, dropout, lr, wd, heads, attention_dropout, runs, splits, train_examples, val_examples, isDirected):
+def eval(model, dataset, dataset_name, channel_size, dropout, lr, wd, heads, attention_dropout, runs, splits, train_examples, val_examples, isDirected):
     if model == 'gat':
-        return eval_archs_gat(dataset, channel_size, dropout, lr, wd, heads, attention_dropout, splits=splits, runs=runs, train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
+        return eval_archs_gat(dataset, dataset_name, channel_size, dropout, lr, wd, heads, attention_dropout, splits=splits, runs=runs, train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
     elif model == 'rgcn' or model == 'rgcn2':
-        return eval_archs_rgcn(dataset, name2conv[model], channel_size, dropout, lr, wd, splits=splits, runs=runs, train_examples = train_examples, val_examples = val_examples)
+        return eval_archs_rgcn(dataset, dataset_name, name2conv[model], channel_size, dropout, lr, wd, splits=splits, runs=runs, train_examples = train_examples, val_examples = val_examples)
     elif model == 'appnp':
-        return eval_archs_appnp(dataset, name2conv[model], channel_size, dropout, lr, wd, splits=splits, runs=runs, train_examples = train_examples, val_examples = val_examples)
+        return eval_archs_appnp(dataset, dataset_name, name2conv[model], channel_size, dropout, lr, wd, splits=splits, runs=runs, train_examples = train_examples, val_examples = val_examples)
     else:
-        return eval_archs_gcn(dataset, name2conv[model], channel_size, dropout, lr, wd, splits=splits, runs=runs, train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
+        return eval_archs_gcn(dataset, dataset_name, name2conv[model], channel_size, dropout, lr, wd, splits=splits, runs=runs, train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
 
 def eval_original(model, dataset_name, directionality, size, dropout, lr, wd, heads,attention_dropout,
         splits, runs, train_examples, val_examples):
@@ -150,11 +163,72 @@ def eval_original(model, dataset_name, directionality, size, dropout, lr, wd, he
     dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}', dataset_name,
                            f'data/graphs/processed/{dataset_name}/{dataset_name}.cites',
                            f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                           directed=isDirected, reverse=isReversed)
-    df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+                           directed=isDirected, reverse=isReversed)[0]
+    df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                   dropout=dropout, wd=wd, heads=heads, attention_dropout=attention_dropout,
                   train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
     return df_cur
+
+def eval_shuffled_features(model, dataset_name, directionality, size, dropout, lr, wd, heads,attention_dropout,
+        splits, runs, train_examples, val_examples):
+    isDirected = (directionality != 'undirected')
+    isReversed = (directionality == 'reversed')
+    dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}', dataset_name,
+                           f'data/graphs/processed/{dataset_name}/{dataset_name}.cites',
+                           f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
+                           directed=isDirected, reverse=isReversed)[0]
+    dataset.x = dataset.x[torch.randperm(dataset.x.size()[0])]
+    df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
+                  dropout=dropout, wd=wd, heads=heads, attention_dropout=attention_dropout,
+                  train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
+    return df_cur
+
+def eval_random_features(model, dataset_name, directionality, size, dropout, lr, wd, heads,attention_dropout,
+        splits, runs, train_examples, val_examples):
+    isDirected = (directionality != 'undirected')
+    isReversed = (directionality == 'reversed')
+    dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}', dataset_name,
+                           f'data/graphs/processed/{dataset_name}/{dataset_name}.cites',
+                           f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
+                           directed=isDirected, reverse=isReversed)[0]
+    dataset.x = torch.randint(0, 2, dataset.x.shape, dtype=torch.float)
+    df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
+                  dropout=dropout, wd=wd, heads=heads, attention_dropout=attention_dropout,
+                  train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
+    return df_cur
+
+def eval_cm_communities(model, dataset_name, directionality, size, dropout, lr, wd, heads,attention_dropout,
+        splits, runs, train_examples, val_examples, inits):
+    isDirected = (directionality != 'undirected')
+    isReversed = (directionality == 'reversed')
+    df_val = pd.DataFrame()
+    for i in range(inits):
+      dataset = GraphDataset(f'data/tmp/{dataset_name}-cm_communities-{i}', dataset_name,
+                             f'data/graphs/cm_communities/{dataset_name}/{dataset_name}_cm_communities_{i}.cites',
+                             f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
+                             directed=isDirected, reverse=isReversed)[0]
+
+      # G = to_networkx(dataset)
+      # G = nx.DiGraph(G)
+      # node_communities = best_partition(nx.to_undirected(G))
+      # nx.set_node_attributes(G,node_communities,'label')
+      # # print(dataset.edge_index)
+      # old_edges = dataset.edge_index
+      # G = generate_modified_conf_model(G)
+      # # dir_path = f'data/graphs/cm_communities/{dataset_name}'
+      # # if not os.path.exists(dir_path):
+      # #   os.mkdir(dir_path)
+      # # nx.write_edgelist(G, f'{dir_path}/{dataset_name}_cm_communities_{i}.cites')
+      # dataset.edge_index = torch.tensor(data=np.array(list(G.edges)).T,dtype=torch.long)
+      # print((torch.tensor(data=np.array(list(G.edges)).T,dtype=torch.long)-old_edges).abs().sum())
+      # print(dataset.edge_index)
+      df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
+                    dropout=dropout, wd=wd, heads=heads, attention_dropout=attention_dropout,
+                    train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
+      df_cur['graph'] = i
+      df_val = pd.concat([df_val, df_cur])
+    
+    return df_val
 
 
 def eval_random(model, dataset_name, directionality, size, dropout, lr, wd, heads,attention_dropout,
@@ -166,8 +240,8 @@ def eval_random(model, dataset_name, directionality, size, dropout, lr, wd, head
         dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-random{i}', dataset_name,
                              f'data/graphs/random/{dataset_name}/{dataset_name}_{i}.cites',
                              f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                             directed=isDirected, reverse=isReversed)
-        df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+                             directed=isDirected, reverse=isReversed)[0]
+        df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                       dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                       train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
         df_cur['random_num'] = i
@@ -183,8 +257,8 @@ def eval_erdos(model, dataset_name, directionality, size, dropout, lr, wd, heads
         dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-erdos{i}', dataset_name,
                              f'data/graphs/erdos/{dataset_name}/{dataset_name}_{i}.cites',
                              f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                             directed=isDirected, reverse=isReversed)
-        df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+                             directed=isDirected, reverse=isReversed)[0]
+        df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                       dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                       train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
         df_cur['erdos_num'] = i
@@ -203,16 +277,16 @@ def eval_injected_edges(model, dataset_name, directionality, size, dropout, lr, 
           dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-injected_{e}_{i}_{hubs_experiment}', dataset_name,
                              f'data/graphs/injected_edges/{dataset_name}/{dataset_name}_{hubs_experiment}_{e}_{i}.cites',
                              f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                             directed=isDirected, reverse=isReversed)
+                             directed=isDirected, reverse=isReversed)[0]
           # print(f'data/graphs/injected_edges/{dataset_name}/{dataset_name}_{hubs_experiment}_{e}_{i}.cites')
-          # print(dataset[0].edge_index.shape)
-          # print(dataset[0].edge_index)
+          # print(dataset.edge_index.shape)
+          # print(dataset.edge_index)
           # if last_edge is None:
-          #   last_edge = dataset[0].edge_index
+          #   last_edge = dataset.edge_index
           #   continue
           # print((1-last_edge.eq(last_edge).double()).sum())
           # continue
-          df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+          df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                         dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                         train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
           df_cur['init_num'] = i
@@ -235,8 +309,8 @@ def eval_injected_edges_degree_cat(model, dataset_name, directionality, size, dr
         dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-injected_{e}_{i}_{hubs_experiment}_{frm}_to_{to}', dataset_name,
                            f'data/graphs/injected_edges_degree_cat/{dataset_name}/{dataset_name}_{hubs_experiment}_{e}_{i}_{frm}_to_{to}.cites',
                            f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                           directed=isDirected, reverse=isReversed)
-        df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+                           directed=isDirected, reverse=isReversed)[0]
+        df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                       dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                       train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
         df_cur['init_num'] = i
@@ -262,8 +336,8 @@ def eval_injected_edges_constant_nodes(model, dataset_name, directionality, size
           dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-injected_{e}edges_{control_ratio}nodes_{i}_{hubs_experiment}_{frm}_to_{to}', dataset_name,
                              f'data/graphs/injected_edges_constant_nodes/{dataset_name}/{dataset_name}_global_edges{e}_nodes{control_ratio:.3f}_{i}_{frm}_to_{to}.cites',
                              f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                             directed=isDirected, reverse=isReversed)
-          df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+                             directed=isDirected, reverse=isReversed)[0]
+          df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                         dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                         train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
           df_cur['init_num'] = i
@@ -292,8 +366,8 @@ def eval_injected_edges_attack_target(model, dataset_name, directionality, size,
             dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-injected_{e}edges_{control_ratio:.3f}nodes_{i}_{hubs_experiment}_atk{atkfrm}_{atkto}_tgt{tgtfrm}_{tgtto}', dataset_name,
                                f'data/graphs/injected_edges_attack_target/{dataset_name}/{dataset_name}_global_edges{e}_nodes{control_ratio:.3f}_{i}_atk{atkfrm}_{atkto}_tgt{tgtfrm}_{tgtto}.cites',
                                f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                               directed=isDirected, reverse=isReversed)
-            df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+                               directed=isDirected, reverse=isReversed)[0]
+            df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                           dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                           train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
             df_cur['init_num'] = i
@@ -318,8 +392,8 @@ def eval_injected_edges_sbm(model, dataset_name, directionality, size, dropout, 
           dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-injected_sbm_{e}_{i}_{hubs_experiment}', dataset_name,
                              f'data/graphs/injected_edges_sbm/{dataset_name}/{dataset_name}_{hubs_experiment}_{e}_{i}.cites',
                              f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                             directed=isDirected, reverse=isReversed)
-          df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+                             directed=isDirected, reverse=isReversed)[0]
+          df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                         dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                         train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
           df_cur['init_num'] = i
@@ -335,8 +409,8 @@ def eval_label_sbm(model, dataset_name, directionality, size, dropout, lr, wd, h
     dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-label_sbm_{hubs_experiment}', dataset_name,
                            f'data/graphs/label_sbm/{dataset_name}/{dataset_name}_{hubs_experiment}.cites',
                            f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                           directed=isDirected, reverse=isReversed)
-    df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+                           directed=isDirected, reverse=isReversed)[0]
+    df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                   dropout=dropout, wd=wd, heads=heads, attention_dropout=attention_dropout,
                   train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
     return df_cur
@@ -350,12 +424,42 @@ def eval_conf(model, dataset_name, directionality, size, dropout, lr, wd, heads,
         dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-confmodel{i}', dataset_name,
                                f'data/graphs/confmodel/{dataset_name}/{dataset_name}_confmodel_{i}.cites',
                                f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                               directed=isDirected, reverse=isReversed)
-        df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+                               directed=isDirected, reverse=isReversed)[0]
+        df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                       dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                       train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
         df_cur['confmodel_num'] = i
         df_val = pd.concat([df_val, df_cur])
+    return df_val
+
+def eval_shifting(model, dataset_name, directionality, size, dropout, lr, wd, heads,attention_dropout,
+        splits, runs, train_examples, val_examples, shifting_inits):
+    isDirected = (directionality != 'undirected')
+    isReversed = (directionality == 'reversed')
+    df_val = pd.DataFrame()
+
+    for change in 'CL':
+      for inc in [True, False]:
+          for r in [0.16,0.32,0.64]: #[0.02,0.04,0.08]:
+            for i in range(shifting_inits):
+              output_prefix = f'data/graphs/shifting/{dataset_name}/{dataset_name}_shifting'
+              output_suffix = '.cites'
+              graph_path = f'{output_prefix}_{change}_{"inc" if inc else "dec"}_r{r:.2f}_{i}{output_suffix}'
+              if not os.path.exists(graph_path):
+                print(f'File not found: {graph_path}')
+                continue
+              dataset = GraphDataset(f'data/tmp/{dataset_name}_shifting_{change}_{"inc" if inc else "dec"}_r{r:.2f}_{i}{output_suffix}',
+                                     dataset_name, graph_path,
+                                     f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
+                                     directed=isDirected, reverse=isReversed)[0]
+              df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
+                            dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
+                            train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
+              df_cur['graph_num'] = i
+              df_cur['inc'] = inc
+              df_cur['change'] = change
+              df_cur['r'] = r
+              df_val = pd.concat([df_val, df_cur])
     return df_val
 
 def eval_sbm(model, dataset_name, directionality, size, dropout, lr, wd, heads,attention_dropout,
@@ -368,14 +472,89 @@ def eval_sbm(model, dataset_name, directionality, size, dropout, lr, wd, heads,a
         dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-sbm{i}', dataset_name,
                                f'data/graphs/sbm/{dataset_name}/{dataset_name}_sbm_{i}.cites',
                                f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                               directed=isDirected, reverse=isReversed)
-        df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+                               directed=isDirected, reverse=isReversed)[0]
+        df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                       dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                       train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
         df_cur['sbm_num'] = i
         df_val = pd.concat([df_val, df_cur])
     return df_val
 
+
+def eval_sbm_label(model, dataset_name, directionality, size, dropout, lr, wd, heads,attention_dropout,
+        splits, runs, train_examples, val_examples, sbm_inits):
+    isDirected = (directionality != 'undirected')
+    isReversed = (directionality == 'reversed')
+    df_val = pd.DataFrame()
+    for i in range(sbm_inits):
+        print(f'data/graphs/processed/{dataset_name}/{dataset_name}.content')
+        dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-sbm_label{i}', dataset_name,
+                               f'data/graphs/sbm_label/{dataset_name}/{dataset_name}_sbm_{i}.cites',
+                               f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
+                               directed=isDirected, reverse=isReversed)[0]
+        df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
+                      dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
+                      train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
+        df_cur['sbm_num'] = i
+        df_val = pd.concat([df_val, df_cur])
+    return df_val
+
+
+def eval_modcm(model, dataset_name, directionality, size, dropout, lr, wd, heads,attention_dropout,
+        splits, runs, train_examples, val_examples, modcm_inits):
+    isDirected = (directionality != 'undirected')
+    isReversed = (directionality == 'reversed')
+    df_val = pd.DataFrame()
+    for i in range(modcm_inits):
+        print(f'data/graphs/processed/{dataset_name}/{dataset_name}.content')
+        dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-modcm{i}', dataset_name,
+                               f'data/graphs/modcm/{dataset_name}/{dataset_name}_modcm_{i}.cites',
+                               f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
+                               directed=isDirected, reverse=isReversed)[0]
+        df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
+                      dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
+                      train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
+        df_cur['modcm_num'] = i
+        df_val = pd.concat([df_val, df_cur])
+    return df_val
+
+
+def eval_modsbm(model, dataset_name, directionality, size, dropout, lr, wd, heads,attention_dropout,
+        splits, runs, train_examples, val_examples, modsbm_inits):
+    isDirected = (directionality != 'undirected')
+    isReversed = (directionality == 'reversed')
+    df_val = pd.DataFrame()
+    for i in range(modsbm_inits):
+        print(f'data/graphs/processed/{dataset_name}/{dataset_name}.content')
+        dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-modsbm{i}', dataset_name,
+                               f'data/graphs/modsbm/{dataset_name}/{dataset_name}_modsbm_{i}.cites',
+                               f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
+                               directed=isDirected, reverse=isReversed)[0]
+        df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
+                      dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
+                      train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
+        df_cur['modsbm_num'] = i
+        df_val = pd.concat([df_val, df_cur])
+    return df_val
+
+
+def eval_reglabel(model, dataset_name, directionality, size, dropout, lr, wd, heads,attention_dropout,
+        splits, runs, train_examples, val_examples, reglabel_inits):
+    isDirected = (directionality != 'undirected')
+    isReversed = (directionality == 'reversed')
+    df_val = pd.DataFrame()
+    for i in range(reglabel_inits):
+        print(f'data/graphs/processed/{dataset_name}/{dataset_name}.content')
+        dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-reglabel{i}', dataset_name,
+                               f'data/graphs/reglabel/{dataset_name}/{dataset_name}_reglabel_{i}.cites',
+                               f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
+                               directed=isDirected, reverse=isReversed)[0]
+        df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
+                      dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
+                      train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
+        df_cur['reglabel_num'] = i
+        df_val = pd.concat([df_val, df_cur])
+    return df_val
 
 
 ################## Synthetic part #####################################
@@ -458,7 +637,8 @@ def eval_sbm_swap(model, dataset_name, directionality, size, dropout, lr, wd, he
         data = dataset[0]
         
         community = load_communities(f'data/community_id_dicts/{dataset_name}/{dataset_name}_louvain.pickle')
-        mapping = data.node_name_mapping[0]
+        
+        mapping = data.node_name_mapping
         label = load_labels(f'data/graphs/processed/{dataset_name}/{dataset_name}.content')
         df_community = pd.DataFrame({'dataset':dataset_name, 'node':node, 'community':community[node], 'label':label[node]} for node in community)
         df_community['node_id'] = df_community.node.apply(lambda x:mapping[x])
@@ -476,7 +656,7 @@ def eval_sbm_swap(model, dataset_name, directionality, size, dropout, lr, wd, he
         col = shuffled[int(n/2):int(n/2)*2]
         assert(len(row) == len(col))
         
-        df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+        df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                       dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                       train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
         if is_sbm:
@@ -506,7 +686,7 @@ def eval_sbm_swap(model, dataset_name, directionality, size, dropout, lr, wd, he
                 df_community.loc[df_community.node_id == v, 'community'] = df_community.loc[df_community.node_id == u, 'community'].values[0]
                 df_community.loc[df_community.node_id == u, 'community'] = tmp
                   
-            df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+            df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                           dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                           train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
             if is_sbm:
@@ -534,8 +714,8 @@ def eval_flipped(model, dataset_name, directionality, size, dropout, lr, wd, hea
         dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-flipped{i}', dataset_name,
                                f'data/graphs/flip_edges/{dataset_name}/{dataset_name}_{i}.cites',
                                f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                               directed=isDirected, reverse=isReversed)
-        df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+                               directed=isDirected, reverse=isReversed)[0]
+        df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                       dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                       train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
         df_cur['percentage'] = i
@@ -553,8 +733,8 @@ def eval_removed_hubs(model, dataset_name, directionality, size, dropout, lr, wd
         dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-removed-hubs{i}', dataset_name,
                                f'data/graphs/removed_hubs/{dataset_name}/{dataset_name}_{i:02}.cites',
                                f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                               directed=isDirected, reverse=isReversed)
-        df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+                               directed=isDirected, reverse=isReversed)[0]
+        df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                       dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                       train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
         df_cur['percentage'] = i
@@ -575,8 +755,8 @@ def eval_added_2hop_edges(model, dataset_name, directionality, size, dropout, lr
         dataset = GraphDataset(f'data/tmp/{dataset_name}{("_" + directionality) if isDirected else ""}-added-2hops{i}', dataset_name,
                                network_path,
                                f'data/graphs/processed/{dataset_name}/{dataset_name}.content',
-                               directed=isDirected, reverse=isReversed)
-        df_cur = eval(model=model, dataset=dataset, channel_size=size, lr=lr, splits=splits, runs=runs,
+                               directed=isDirected, reverse=isReversed)[0]
+        df_cur = eval(model=model, dataset=dataset, dataset_name=dataset_name, channel_size=size, lr=lr, splits=splits, runs=runs,
                       dropout=dropout, wd=wd, heads=heads,attention_dropout=attention_dropout,
                       train_examples = train_examples, val_examples = val_examples,isDirected=isDirected)
         df_cur['percentage'] = i
@@ -608,8 +788,16 @@ if __name__ == '__main__':
         df_cur = eval_conf(args.model, args.dataset, args.directionality, args.size, args.dropout, args.lr, args.wd,
                 args.heads, args.attention_dropout,
                 args.splits, args.runs, args.train_examples, args.val_examples, args.conf_inits)
+    if args.shifting:
+        df_cur = eval_shifting(args.model, args.dataset, args.directionality, args.size, args.dropout, args.lr, args.wd,
+                args.heads, args.attention_dropout,
+                args.splits, args.runs, args.train_examples, args.val_examples, args.shifting_inits)
     elif args.sbm:
         df_cur = eval_sbm(args.model, args.dataset, args.directionality, args.size, args.dropout, args.lr, args.wd,
+                args.heads, args.attention_dropout,
+                args.splits, args.runs, args.train_examples, args.val_examples, args.sbm_inits)
+    elif args.sbm_label:
+        df_cur = eval_sbm_label(args.model, args.dataset, args.directionality, args.size, args.dropout, args.lr, args.wd,
                 args.heads, args.attention_dropout,
                 args.splits, args.runs, args.train_examples, args.val_examples, args.sbm_inits)
     elif args.flipped:

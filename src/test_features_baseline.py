@@ -4,7 +4,8 @@ import os
 from src.evaluation.embedding_evaluation_module import test_method
 from src.data.data_loader import FeatureOnlyData
 
-num_splits = 20
+num_splits = 10
+inits = 10
 
 
 def report_test_acc_unsupervised_embedding(dataset,seed):
@@ -17,7 +18,7 @@ def report_test_acc_unsupervised_embedding(dataset,seed):
     tests = tests + test
     return tests
 
-val_out = f'reports/results/test_acc/features-only-baseline.csv'
+val_out = f'reports/results/test_acc/mlp-baseline.csv'
 
 print(f'reading {val_out}')
 if os.path.exists(val_out):
@@ -27,7 +28,7 @@ else:
     
 # datasets = 'cora citeseer pubmed twitter webkb cora_full'.split()
 # datasets = 'amazon_electronics_computers amazon_electronics_photo ms_academic_cs ms_academic_phy'.split()
-datasets = 'wiki_cs'.split()
+datasets = 'squirrel'.split()
 
 def train_count(dataset):
     if 'webkb' in dataset:
@@ -42,7 +43,6 @@ def val_count(dataset):
 for dataset in datasets:
     print(f'evaluating {dataset}')
     tests = []
-    inits = 5
     for seed in range(inits):
         tests = tests + report_test_acc_unsupervised_embedding(dataset=dataset,seed=seed)
     test_acc = test_acc.append({'method': 'features-only-baseline', 'dataset': dataset,

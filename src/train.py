@@ -1,7 +1,8 @@
-from src.apply_gnn_to_datasets import eval_original, eval_conf, eval_sbm
-from src.apply_gnn_to_datasets import eval_random, eval_erdos, eval_flipped, eval_removed_hubs, eval_added_2hop_edges
+from src.apply_gnn_to_datasets import eval_original, eval_conf, eval_sbm, eval_sbm_label, eval_modcm, eval_reglabel, eval_shuffled_features
+from src.apply_gnn_to_datasets import eval_random, eval_erdos, eval_flipped, eval_removed_hubs, eval_added_2hop_edges, eval_random_features
 from src.apply_gnn_to_datasets import eval_label_sbm, eval_injected_edges, eval_injected_edges_sbm, eval_injected_edges_constant_nodes
 from src.apply_gnn_to_datasets import eval_sbm_swap, eval_injected_edges_degree_cat,eval_injected_edges_attack_target
+from src.apply_gnn_to_datasets import eval_cm_communities, eval_modsbm, eval_shifting
 import argparse
 import pandas as pd
 import os
@@ -16,10 +17,42 @@ def parse_args():
                         type=bool,
                         default=False,
                         help='Is configuration model evaluation. Default is False.')
+    parser.add_argument('--shifting',
+                        type=bool,
+                        default=False,
+                        help='Is shifting evaluation. Default is False.')
     parser.add_argument('--sbm',
                         type=bool,
                         default=False,
                         help='Is SBM evaluation. Default is False.')
+    parser.add_argument('--shuffled_features',
+                        type=bool,
+                        default=False,
+                        help='Is shuffled features evaluation. Default is False.')
+    parser.add_argument('--random_features',
+                        type=bool,
+                        default=False,
+                        help='Is random features evaluation. Default is False.')
+    parser.add_argument('--cm_communities',
+                        type=bool,
+                        default=False,
+                        help='Is configuration model on communities evaluation. Default is False.')
+    parser.add_argument('--modcm',
+                        type=bool,
+                        default=False,
+                        help='Is modified configuration model evaluation. Default is False.')
+    parser.add_argument('--modsbm',
+                        type=bool,
+                        default=False,
+                        help='Is modified SBM evaluation. Default is False.')
+    parser.add_argument('--reglabel',
+                        type=bool,
+                        default=False,
+                        help='Is label-based d-regular graph evaluation. Default is False.')
+    parser.add_argument('--sbm_label',
+                        type=bool,
+                        default=False,
+                        help='Is SBM_label evaluation. Default is False.')
     parser.add_argument('--sbm_swap',
                         type=bool,
                         default=False,
@@ -158,7 +191,12 @@ if __name__ == '__main__':
                 print(f'{dataset}, {model}, {directionality}')
                 val_out = f'reports/results/test_acc/{model}_{dataset}'\
                           f'{"_conf" if args.conf else ""}'\
+                          f'{"_shifting" if args.shifting else ""}'\
                           f'{"_sbm" if args.sbm else ""}'\
+                          f'{"_sbm_label" if args.sbm_label else ""}'\
+                          f'{"_modcm" if args.modcm else ""}'\
+                          f'{"_modsbm" if args.modsbm else ""}'\
+                          f'{"_reglabel" if args.reglabel else ""}'\
                           f'{"_sbm_swap" if args.sbm_swap else ""}'\
                           f'{"_swap" if args.swap else ""}'\
                           f'{"_random" if args.random else ""}'\
@@ -172,6 +210,9 @@ if __name__ == '__main__':
                           f'{"_flipped" if args.flipped else ""}'\
                           f'{"_removed_hubs" if args.removed_hubs else ""}'\
                           f'{"_added_2hop_edges" if args.added_2hop_edges else ""}'\
+                          f'{"_shuffled_features" if args.shuffled_features else ""}'\
+                          f'{"_random_features" if args.random_features else ""}'\
+                          f'{"_cm_communities" if args.cm_communities else ""}'\
                           f'{("_" + directionality) if (directionality!="undirected") else ""}.csv'
                 print(f'Evaluation will be saved to {val_out}')
                 if os.path.exists(val_out):
@@ -187,6 +228,18 @@ if __name__ == '__main__':
                 if args.sbm:
                     df_cur = eval_sbm(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
                              args.train_examples, args.val_examples, 10)
+                elif args.sbm_label:
+                    df_cur = eval_sbm_label(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
+                             args.train_examples, args.val_examples, 10)
+                elif args.modcm:
+                    df_cur = eval_modcm(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
+                             args.train_examples, args.val_examples, 10)
+                elif args.modsbm:
+                    df_cur = eval_modsbm(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
+                             args.train_examples, args.val_examples, 10)
+                elif args.reglabel:
+                    df_cur = eval_reglabel(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
+                             args.train_examples, args.val_examples, 1)
                 elif args.sbm_swap:
                     df_cur = eval_sbm_swap(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
                              args.train_examples, args.val_examples, 10, True)
@@ -196,6 +249,9 @@ if __name__ == '__main__':
                 elif args.conf:
                     df_cur = eval_conf(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
                              args.train_examples, args.val_examples, 10)
+                elif args.shifting:
+                    df_cur = eval_shifting(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
+                             args.train_examples, args.val_examples, 5)
                 elif args.random:
                     df_cur = eval_random(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
                              args.train_examples, args.val_examples, 10)
@@ -232,6 +288,15 @@ if __name__ == '__main__':
                 elif args.added_2hop_edges:
                     df_cur = eval_added_2hop_edges(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
                              args.train_examples, args.val_examples)
+                elif args.shuffled_features:
+                    df_cur = eval_shuffled_features(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
+                             args.train_examples, args.val_examples)
+                elif args.random_features:
+                    df_cur = eval_random_features(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
+                             args.train_examples, args.val_examples)
+                elif args.cm_communities:
+                    df_cur = eval_cm_communities(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
+                             args.train_examples, args.val_examples, 5)
                 else:
                     df_cur = eval_original(model, dataset, directionality, size, dropout, lr, wd, heads, attention_dropout, args.splits, args.runs,
                              args.train_examples, args.val_examples)

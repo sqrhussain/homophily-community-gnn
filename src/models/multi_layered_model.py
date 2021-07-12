@@ -4,10 +4,10 @@ import numpy as np
 
 
 class MonoModel(torch.nn.Module):
-    def __init__(self, convType, dataset, channels, dropout=0.8):
+    def __init__(self, convType, data, channels, dropout=0.8):
         super(MonoModel, self).__init__()
         self.dropout = dropout
-        channels = [dataset.num_node_features] + channels + [dataset.num_classes]
+        channels = [data.x.shape[1]] + channels + [len(set([x.item() for x in data.y]))]
         self.conv = []
         for i in range(1, len(channels)):
             conv = convType(channels[i - 1], channels[i])
@@ -37,8 +37,8 @@ class BiModel(torch.nn.Module):
         self.dropout = dropout
         self.conv_st = []
         self.conv_ts = []
-        channels_output = [dataset.num_node_features] + [c * 2 for c in channels]
-        channels = [dataset.num_node_features] + channels
+        channels_output = [data.x.shape[1]] + [c * 2 for c in channels]
+        channels = [data.x.shape[1]] + channels
         for i in range(len(channels) - 1):
             conv_st = convType(channels_output[i], channels[i + 1])
             self.add_module('conv_st' + str(i), conv_st)
@@ -48,7 +48,7 @@ class BiModel(torch.nn.Module):
             self.add_module('conv_ts' + str(i), conv_ts)
             self.conv_ts.append(conv_ts)
 
-        self.last = convType(channels_output[-1], dataset.num_classes)
+        self.last = convType(channels_output[-1], len(set([x.item() for x in data.y])))
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
@@ -72,8 +72,8 @@ class ASYM(BiModel):
 
     def __init__(self, convType, dataset, channels, dropout=0.8):
         super(ASYM, self).__init__(convType, dataset, channels, dropout)
-        self.last0 = convType(channels[-1]*2, dataset.num_classes)
-        self.last1 = convType(channels[-1]*2, dataset.num_classes)
+        self.last0 = convType(channels[-1]*2, len(set([x.item() for x in data.y])))
+        self.last1 = convType(channels[-1]*2, len(set([x.item() for x in data.y])))
 
 
     def forward(self, data):
@@ -103,8 +103,8 @@ class TriModel(torch.nn.Module):
         self.conv_st = []
         self.conv_ts = []
         self.conv = []
-        channels_output = [dataset.num_node_features] + [c * 3 for c in channels]
-        channels = [dataset.num_node_features] + channels
+        channels_output = [data.x.shape[1]] + [c * 3 for c in channels]
+        channels = [data.x.shape[1]] + channels
         for i in range(len(channels) - 1):
             conv_st = convType(channels_output[i], channels[i + 1])
             self.add_module('conv_st' + str(i), conv_st)
@@ -118,7 +118,7 @@ class TriModel(torch.nn.Module):
             self.add_module('conv' + str(i), conv)
             self.conv.append(conv)
 
-        self.last = convType(channels_output[-1], dataset.num_classes)
+        self.last = convType(channels_output[-1], len(set([x.item() for x in data.y])))
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
@@ -142,9 +142,9 @@ class TriModel(torch.nn.Module):
 class pASYM(TriModel):
     def __init__(self, convType, dataset, channels, dropout=0.8):
         super(pASYM, self).__init__(convType, dataset, channels, dropout)
-        self.last0 = convType(channels[-1]*3, dataset.num_classes)
-        self.last1 = convType(channels[-1]*3, dataset.num_classes)
-        self.last2 = convType(channels[-1]*3, dataset.num_classes)
+        self.last0 = convType(channels[-1]*3, len(set([x.item() for x in data.y])))
+        self.last1 = convType(channels[-1]*3, len(set([x.item() for x in data.y])))
+        self.last2 = convType(channels[-1]*3, len(set([x.item() for x in data.y])))
 
 
     def forward(self, data):

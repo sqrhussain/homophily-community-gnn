@@ -2,7 +2,7 @@ from src.evaluation.gnn_evaluation_module import eval_gnn
 from src.models.multi_layered_model import MonoModel,BiModel,TriModel
 from src.models.appnp_model import MonoAPPNPModel
 from src.models.gat_models import MonoGAT, BiGAT, TriGAT
-from torch_geometric.nn import GCNConv, SAGEConv, GATConv, RGCNConv, SGConv, APPNP
+from torch_geometric.nn import GCNConv, SAGEConv, GATConv, RGCNConv, SGConv, APPNP, ClusterGCNConv
 from src.data.data_loader import GraphDataset
 import warnings
 import pandas as pd 
@@ -43,7 +43,7 @@ parser.add_argument('--val_examples',
                     default=30,
                     help='Number of validation examples per class. Default is 30.')
 
-name2conv = {'gcn': GCNConv, 'sage': SAGEConv, 'gat': GATConv, 'rgcn': RGCNConv, 'sgc':SGConv, 'appnp':APPNP}
+name2conv = {'gcn': GCNConv, 'sage': SAGEConv, 'gat': GATConv, 'rgcn': RGCNConv, 'sgc':SGConv, 'appnp':APPNP, 'cgcn':ClusterGCNConv}
 args = parser.parse_args()
 
 isDirected = (args.directionality != 'undirected')
@@ -65,19 +65,19 @@ if os.path.exists(val_out):
 else:
     df_val = pd.DataFrame(columns='conv arch ch dropout lr wd heads attention_dropout splits inits val_accs val_avg val_std test_accs test_avg test_std stopped elapsed'.split())
     
-def eval_archs_gcn(dataset,conv,channel_size,dropout,lr,wd,models=[MonoModel]):
+def eval_archs_gcn(dataset, dataset_name, conv,channel_size,dropout,lr,wd,models=[MonoModel]):
     if isDirected:
         models = [MonoModel]
     if conv == APPNP:
         models = [MonoAPPNPModel]
-    return eval_gnn(dataset,conv,channel_size,dropout,lr,wd,heads=1,
+    return eval_gnn(dataset[0], dataset_name,conv,channel_size,dropout,lr,wd,heads=1,
            models=models,num_runs=num_runs,num_splits=num_splits,
            train_examples = args.train_examples, val_examples = args.val_examples)
 
-def eval_archs_gat(dataset, channel_size, dropout, lr, wd, heads, attention_dropout=0.3, models=[MonoGAT]):
+def eval_archs_gat(dataset, dataset_name, channel_size, dropout, lr, wd, heads, attention_dropout=0.3, models=[MonoGAT]):
     if isDirected:
         models = [MonoGAT]
-    return eval_gnn(dataset, GATConv, channel_size, dropout, lr, wd, heads=heads, attention_dropout=attention_dropout,
+    return eval_gnn(dataset[0], dataset_name, GATConv, channel_size, dropout, lr, wd, heads=heads, attention_dropout=attention_dropout,
                       models=models, num_runs=args.runs, num_splits=args.splits,
                       train_examples = args.train_examples, val_examples = args.val_examples)
 def contains(df_val,ch,lr,dropout,wd):
@@ -86,16 +86,16 @@ def contains_gat(df_val,ch,lr,dropout,wd,heads,attention_dropout):
     return ((df_val['ch']==ch) & (df_val['lr']==lr) & (df_val['dropout']==dropout)  & (df_val['wd']==wd) & (df_val['heads']==heads) & (df_val['attention_dropout']==attention_dropout)).any()
 
 for ch in [96]:
-    for lr in [25e-4]:
+    for lr in [1e-3,5e-3,1e-2]:
         for dropout in [0.2,0.4,0.6,0.8]:
             for wd in [1e-4,1e-3,1e-2,1e-1]:
                 if args.model == 'gat':
-                    for heads in [2]:
+                    for heads in [8]:
                        for attention_dropout in [0.2,0.4,0.6,0.8]:
                             if contains_gat(df_val,ch,lr,dropout,wd,heads,attention_dropout):
                                 print('already calculated!')
                                 continue
-                            df_cur = eval_archs_gat(dataset=dataset,channel_size=ch,lr=lr,
+                            df_cur = eval_archs_gat(dataset=dataset, dataset_name=args.dataset,channel_size=ch,lr=lr,
                                         dropout=dropout,wd=wd,heads=heads,attention_dropout=attention_dropout)
                             df_val = pd.concat([df_val,df_cur])
                             df_val.to_csv(val_out,index=False)
@@ -103,7 +103,7 @@ for ch in [96]:
                     if contains(df_val,ch,lr,dropout,wd):
                         print('already calculated!')
                         continue
-                    df_cur = eval_archs_gcn(dataset=dataset,conv=name2conv[args.model],channel_size=ch,lr=lr,dropout=dropout,wd=wd)
+                    df_cur = eval_archs_gcn(dataset=dataset, dataset_name=args.dataset,conv=name2conv[args.model],channel_size=ch,lr=lr,dropout=dropout,wd=wd)
 
                     df_val = pd.concat([df_val,df_cur])
                     df_val.to_csv(val_out,index=False)

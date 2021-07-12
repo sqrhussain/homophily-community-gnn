@@ -29,7 +29,7 @@ def build_complete_graph_per_class(data,split):
 
     return [all_rows,all_cols]
 
-def train_gnn(dataset, channels, modelType, architecture,
+def train_gnn(data, dataset_name, channels, modelType, architecture,
               lr, wd, heads, dropout, attention_dropout,
               epochs,
               train_examples, val_examples,
@@ -41,8 +41,8 @@ def train_gnn(dataset, channels, modelType, architecture,
     torch.manual_seed(init_seed)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    data = dataset[0].to(device)
-    split = NetworkSplitShchur(dataset, train_examples_per_class=train_examples,early_examples_per_class=0,
+    data = data.to(device)
+    split = NetworkSplitShchur(data, dataset_name, train_examples_per_class=train_examples,early_examples_per_class=0,
                  val_examples_per_class=val_examples, split_seed=split_seed)
 
     # for each class, add a complete graph of its labeled nodes
@@ -51,11 +51,11 @@ def train_gnn(dataset, channels, modelType, architecture,
         data.edge_index = torch.cat([data.edge_index, torch.tensor(additional_edge_index).to(device)], 1)
 
     if modelType == GATConv:
-        model = architecture(dataset, channels, dropout=dropout, heads=heads,attention_dropout=attention_dropout).to(device)
+        model = architecture(data, channels, dropout=dropout, heads=heads,attention_dropout=attention_dropout).to(device)
     elif modelType == APPNP:
-        model = architecture(dataset, channels, dropout=dropout).to(device)
+        model = architecture(data, channels, dropout=dropout).to(device)
     else:
-        model = architecture(modelType, dataset, channels, dropout).to(device)
+        model = architecture(modelType, data, channels, dropout).to(device)
 
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
@@ -102,7 +102,7 @@ def train_gnn(dataset, channels, modelType, architecture,
 
 
 
-def train_and_get_embeddings(dataset, channels, modelType, architecture,
+def train_and_get_embeddings(data, dataset_name, channels, modelType, architecture,
               lr, wd, heads, dropout, attention_dropout,
               epochs,
               train_examples, val_examples,
@@ -114,8 +114,8 @@ def train_and_get_embeddings(dataset, channels, modelType, architecture,
     torch.manual_seed(init_seed)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    data = dataset[0].to(device)
-    split = NetworkSplitShchur(dataset, train_examples_per_class=train_examples,early_examples_per_class=0,
+    data = data[0].to(device)
+    split = NetworkSplitShchur(data, dataset_name, train_examples_per_class=train_examples,early_examples_per_class=0,
                  val_examples_per_class=val_examples, split_seed=split_seed)
 
     # for each class, add a complete graph of its labeled nodes
@@ -124,11 +124,11 @@ def train_and_get_embeddings(dataset, channels, modelType, architecture,
         data.edge_index = torch.cat([data.edge_index, torch.tensor(additional_edge_index).to(device)], 1)
 
     if modelType == GATConv:
-        model = architecture(dataset, channels, dropout=dropout, heads=heads,attention_dropout=attention_dropout).to(device)
+        model = architecture(data, channels, dropout=dropout, heads=heads,attention_dropout=attention_dropout, concat = (dataset_name == 'PubMed')).to(device)
     elif modelType == APPNP:
-        model = architecture(dataset, channels, dropout=dropout).to(device)
+        model = architecture(data, channels, dropout=dropout).to(device)
     else:
-        model = architecture(modelType, dataset, channels, dropout).to(device)
+        model = architecture(modelType, data, channels, dropout).to(device)
 
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
@@ -160,11 +160,11 @@ def train_and_get_embeddings(dataset, channels, modelType, architecture,
             break
         model.train()
     chosen.eval()  # enter eval phase
-    _, pred = chosen(data)
+    pred = chosen(data)
     return chosen.embedding
 
 
-def train_gnn_multiple_runs(dataset, channels, modelType, architecture,
+def train_gnn_multiple_runs(data, dataset_name, channels, modelType, architecture,
                             lr, wd, heads, dropout, attention_dropout,
                             train_examples, val_examples,
                             runs, epochs, split_seed=0,
@@ -174,7 +174,7 @@ def train_gnn_multiple_runs(dataset, channels, modelType, architecture,
     test_accs = []
     stoppeds = []
     for i in range(runs):
-        val_acc, stopped, test_acc = train_gnn(dataset, channels, modelType, architecture, lr=lr, wd=wd, epochs=epochs,
+        val_acc, stopped, test_acc = train_gnn(data, dataset_name, channels, modelType, architecture, lr=lr, wd=wd, epochs=epochs,
                                                heads=heads, dropout=dropout, attention_dropout=attention_dropout,
                                                split_seed=split_seed, init_seed=i, test_score=test_score,
                                                actual_predictions=actual_predictions,
@@ -191,7 +191,8 @@ def train_gnn_multiple_runs(dataset, channels, modelType, architecture,
     return val_accs, stoppeds, test_accs
 
 
-def eval_gnn(dataset,
+def eval_gnn(data,
+             dataset_name,
              conv,
              channel_size, dropout, lr, wd, heads,attention_dropout=0.3,
              models=[MonoModel, BiModel, TriModel],
@@ -211,7 +212,7 @@ def eval_gnn(dataset,
         stoppeds = []
         start = time.time()
         for seed in range(num_splits):
-            val_acc, stopped, test_acc = train_gnn_multiple_runs(dataset, [channel_size // channels // heads], conv,
+            val_acc, stopped, test_acc = train_gnn_multiple_runs(data, dataset_name, [channel_size // channels // heads], conv,
                                                                  runs=num_runs, epochs=200, split_seed=seed,
                                                                  architecture=model, lr=lr, wd=wd, heads=heads,
                                                                  attention_dropout=attention_dropout,

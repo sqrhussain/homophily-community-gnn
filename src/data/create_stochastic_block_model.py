@@ -102,7 +102,12 @@ def calculate_edge_probabilities(G, communities, node_id_community_id_dict, reve
         cols.append(key[1])
         if between_community_stats[key]['edge_probability'] < 0 or between_community_stats[key]['edge_probability'] > 1:
             print(key)
-        data.append(between_community_stats[key]['edge_probability'])
+        prob = between_community_stats[key]['edge_probability']
+        if key[0] == key[1]:
+            prob = min(prob*1.5, 1)
+        else:
+            prob *= 0.5
+        data.append(prob)
     communities_count = len(communities)
     return csr_matrix((data, (rows, cols)), shape=(communities_count, communities_count),
                       dtype=float).todense().tolist()
@@ -163,6 +168,7 @@ def create_sbm_graph(graph, block_sizes, edge_probabilities, node_lists, output_
 
 
 def load_communities(community_path,graph=None,reverse_node_mappings=None):
+    print(f'Community path: {community_path}')
     # community detection
     if not os.path.exists(community_path):
         if graph is None or reverse_node_mappings is None:
@@ -175,6 +181,68 @@ def load_communities(community_path,graph=None,reverse_node_mappings=None):
         node_communities_louvain = load_from_file(community_path)
     return node_communities_louvain
 
+
+###################### Label SBM ############################
+
+def load_labels(path):
+    label = {}
+    cnt = 0
+    label_mapping = {}
+    reverse_label_mapping = {}
+    with open(path, 'r') as handle:
+        label = {}
+        for line in handle:
+            s = line.strip().split()
+            if s[-1] not in label_mapping:
+                label_mapping[s[-1]] = cnt
+                reverse_label_mapping[cnt] = s[-1]
+                cnt+=1
+            label[s[0]] = label_mapping[s[-1]]
+    return label,reverse_label_mapping
+
+def label_stochastic_matrix(graph_path, content_path):
+    graph, node_mappings, reverse_node_mappings = create_graph_and_node_mappings_from_file(graph_path)
+    labels,remap = load_labels(content_path)
+    node_labels = {}
+    for node in labels:
+        node_labels[node_mappings[node]] = labels[node]
+    label_id_to_node_id = create_community_id_to_node_id(node_labels)
+    edge_probabilities = calculate_edge_probabilities(graph, label_id_to_node_id,
+                                                      node_labels, None)
+    return edge_probabilities,remap
+
+
+
+
+def build_label_based_sbm(graph, node_mappings, reverse_node_mappings, labels):
+    block_sizes, edge_probabilities, node_lists = build_stochastic_block_matrix(graph, node_mappings, reverse_node_mappings, labels)
+    n = len(block_sizes)
+    avg_node_degree = 2*len(graph.edges)/len(graph.nodes)
+    diag_basis = (avg_node_degree*np.array(block_sizes)/2)/np.array(block_sizes)/np.array(block_sizes)
+    diag = np.diag(diag_basis)
+    others = ((np.ones([n,n])*diag_basis).T*diag_basis).T/n
+    edge_probabilities = diag/2 + others
+    return edge_probabilities, block_sizes, node_lists
+
+
+def create_label_based_sbm(graph_path, content_path, output_path, seed=0):
+    graph, node_mappings, reverse_node_mappings = create_graph_and_node_mappings_from_file(graph_path)
+    labels,remap = load_labels(content_path)
+    node_labels = {}
+    for node in labels:
+        node_labels[node_mappings[node]] = labels[node]
+    edge_probabilities, block_sizes, node_lists = build_label_based_sbm(graph, node_mappings, reverse_node_mappings, labels)
+    create_sbm_graph(graph, block_sizes, edge_probabilities, node_lists, output_path, seed, reverse_node_mappings)
+    return edge_probabilities
+
+def create_multiple_label_sbm_graphs(graph_path, content_path, output_prefix, output_suffix='.cites', inits=10):
+    for i in range(inits):
+        print(f'{graph_path} ... {output_prefix}_{i}{output_suffix}')
+        create_label_based_sbm(graph_path,content_path,f'{output_prefix}_{i}{output_suffix}',i)
+
+##################################################
+
+
 def create_multiple_sbm_graphs(graph_path, community_path, output_prefix, output_suffix='.cites', inits=10):
 
     graph, node_mappings, reverse_node_mappings = create_graph_and_node_mappings_from_file(graph_path)
@@ -184,11 +252,31 @@ def create_multiple_sbm_graphs(graph_path, community_path, output_prefix, output
     # build stochastic matrix
     block_sizes, edge_probabilities, node_lists = build_stochastic_block_matrix(graph, node_mappings, reverse_node_mappings, node_communities_louvain)
     for i in range(inits):
+        print(f'{graph_path} ... {output_prefix}_{i}{output_suffix}')
         create_sbm_graph(graph, block_sizes, edge_probabilities, node_lists,
                          f'{output_prefix}_{i}{output_suffix}', i, reverse_node_mappings)
 
 
+
+
 if __name__ == "__main__":
+
+
+    datasets = 'cora citeseer twitter webkb texas wisconsin cornell squirrel chameleon actor pubmed cora_full'.split()
+    for dataset in datasets:
+        # create_multiple_sbm_graphs(f'data/graphs/processed/{dataset}/{dataset}.cites',
+        #                        f'data/community_id_dicts/{dataset}/{dataset}_louvain.pickle',
+        #                        f'data/graphs/sbm/{dataset}/{dataset}_sbm')
+        if not os.path.exists(f'data/graphs/modsbm/'):
+            os.mkdir(f'data/graphs/modsbm/')
+        if not os.path.exists(f'data/graphs/modsbm/{dataset}/'):
+            os.mkdir(f'data/graphs/modsbm/{dataset}/')
+        create_multiple_sbm_graphs(f'data/graphs/processed/{dataset}/{dataset}.cites',
+                                f'data/community_id_dicts/{dataset}/{dataset}_louvain.pickle',
+                                f'data/graphs/modsbm/{dataset}/{dataset}_modsbm',inits=10)
+
+
+    #########################################################################
     # create_multiple_sbm_graphs('data/graphs/processed/cora/cora.cites',
     #                            'data/community_id_dicts/cora/cora_louvain.pickle',
     #                            'data/graphs/sbm/cora/cora_sbm')
@@ -238,8 +326,17 @@ if __name__ == "__main__":
     # create_multiple_sbm_graphs('data/graphs/processed/ms_academic_phy/ms_academic_phy.cites',
     #                            'data/community_id_dicts/ms_academic_phy/ms_academic_phy_louvain.pickle',
     #                            'data/graphs/sbm/ms_academic_phy/ms_academic_phy_sbm')
-    create_multiple_sbm_graphs('data/graphs/processed/wiki_cs/wiki_cs.cites',
-                               'data/community_id_dicts/wiki_cs/wiki_cs_louvain.pickle',
-                               'data/graphs/sbm/wiki_cs/wiki_cs_sbm')
+    # create_multiple_sbm_graphs('data/graphs/processed/wiki_cs/wiki_cs.cites',
+    #                            'data/community_id_dicts/wiki_cs/wiki_cs_louvain.pickle',
+    #                            'data/graphs/sbm/wiki_cs/wiki_cs_sbm')
+    # create_multiple_sbm_graphs('data/graphs/processed/actor/actor.cites',
+    #                            'data/community_id_dicts/actor/actor_louvain.pickle',
+    #                            'data/graphs/sbm/actor/actor_sbm')
+    # create_multiple_sbm_graphs('data/graphs/processed/chameleon/chameleon.cites',
+    #                            'data/community_id_dicts/chameleon/chameleon_louvain.pickle',
+    #                            'data/graphs/sbm/chameleon/chameleon_sbm')
+    # create_multiple_sbm_graphs('data/graphs/processed/squirrel/squirrel.cites',
+    #                            'data/community_id_dicts/squirrel/squirrel_louvain.pickle',
+    #                            'data/graphs/sbm/squirrel/squirrel_sbm')
 
 

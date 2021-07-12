@@ -46,7 +46,7 @@ def generate_multiple_modified_conf_models(graph_path, content_path, output_pref
 
 
 if __name__ == '__main__':
-    datasets = 'cora citeseer twitter chameleon squirrel webkb actor pubmed cora_full'.split()
+    datasets = 'texas wisconsin cornell'.split()
     for dataset in datasets:
 
         if not os.path.exists(f'data/graphs/modcm/{dataset}/'):

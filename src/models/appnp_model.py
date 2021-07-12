@@ -5,7 +5,7 @@ import numpy as np
 from torch_geometric.nn import APPNP
 
 class MonoAPPNPModel(torch.nn.Module):
-    def __init__(self, dataset, channels, dropout=0.8, K=10, alpha=0.10):
+    def __init__(self, data, channels, dropout=0.8, K=10, alpha=0.10):
         super(MonoAPPNPModel, self).__init__()
         self.dropout = dropout
 
@@ -14,10 +14,10 @@ class MonoAPPNPModel(torch.nn.Module):
 
         self.nn = nn.Sequential(
             nn.Dropout(dropout),
-            nn.Linear(dataset.num_node_features, channels[0]),
+            nn.Linear(data.x.shape[1], channels[0]),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(channels[0], dataset.num_classes),
+            nn.Linear(channels[0], len(set([x.item() for x in data.y]))),
         )
         self.appnp = APPNP(K,alpha)
 

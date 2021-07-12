@@ -28,6 +28,6 @@ if __name__=='__main__':
 	inits = 10
 	if not os.path.exists('data/graphs/erdos'):
 		os.mkdir('data/graphs/erdos')
-	for dataset in 'wiki_cs'.split():
+	for dataset in 'texas wisconsin cornell'.split():
 		for seed in range(inits):
 			generate_random_graph(dataset,seed=seed)

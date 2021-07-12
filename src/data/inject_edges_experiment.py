@@ -32,8 +32,12 @@ def parse_args():
                         help='Is it a degree category experiment, i.e., adding a constant number of edges but attaching to nodes of varying degree categories? Default is False')
     parser.add_argument('--num_injected',
                         type=int,
-                        default=500,
+                        default=None,
                         help='Number of edges to inject in the degree_cat experiment.')
+    parser.add_argument('--frac_injected',
+                        type=float,
+                        default=0.05,
+                        help='Fraction of injected edges')
 
     # The following are arguments for injection by selecting a constant number of nodes and injecting global edges from them.
     # Only works if --constant_nodes or --attack_target is True
@@ -373,6 +377,8 @@ def main():
         for dataset in args.datasets:
             graph_path = f'data/graphs/processed/{dataset}/{dataset}.cites'
             output_dir = f'data/graphs/injected_edges_degree_cat/{dataset}'
+            if args.num_injected is None:
+                output_dir = f'data/graphs/injected_edges_frac_degree_cat/{dataset}'
             labels_path = f'data/community_id_dicts/{dataset}/{dataset}_louvain.pickle'
             labels = load_communities(labels_path)
             print(f'graph: {graph_path}')
@@ -380,11 +386,18 @@ def main():
                 os.mkdir(output_dir)
             for percentile in range(0,100,args.degree_percentile):
                 for seed in range(args.runs):
-                    output_path = output_dir + f'/{dataset}_global_edges_{args.num_injected}_{seed}_{percentile}_to_{percentile+args.degree_percentile}.cites'
+                    if args.num_injected is None:
+                        output_path = output_dir + f'/{dataset}_global_edges_{args.frac_injected:.2f}_{seed}_{percentile}_to_{percentile+args.degree_percentile}.cites'
+                    else:
+                        output_path = output_dir + f'/{dataset}_global_edges_{args.num_injected}_{seed}_{percentile}_to_{percentile+args.degree_percentile}.cites'
                     print(f'output: {output_path}')
                     frm = percentile/100
                     to =(percentile+args.degree_percentile)/100
-                    create_label_based_sbm_global_degree_cat(graph_path, labels, output_path, args.num_injected, frm, to, seed=seed, gen_sbm=False)
+                    num_injected = args.num_injected
+                    if num_injected is None:
+                        num_injected = int(len(labels) * args.frac_injected)
+                    print(num_injected)
+                    create_label_based_sbm_global_degree_cat(graph_path, labels, output_path, num_injected, frm, to, seed=seed, gen_sbm=False)
     else:
         edges = range(6000,10001,1000)
         for dataset in args.datasets:

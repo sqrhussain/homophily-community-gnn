@@ -7,7 +7,7 @@ class MonoRGCN(torch.nn.Module):
     def __init__(self, convType, dataset, channels, dropout=0.8, num_bases=10):
         super(MonoRGCN, self).__init__()
         self.dropout = dropout
-        channels = [dataset.num_node_features] + channels + [dataset.num_classes]
+        channels = [data.x.shape[1]] + channels + [len(set([x.item() for x in data.y]))]
         self.conv = []
         for i in range(1, len(channels)):
             if convType == RGCNConv:
@@ -188,8 +188,8 @@ class RGCN2(MessagePassing):
 #         self.dropout=dropout
 #         self.conv_st = []
 #         self.conv_ts = []
-#         channels_output = [dataset.num_node_features] + [c*2 for c in channels]
-#         channels = [dataset.num_node_features] + channels
+#         channels_output = [data.x.shape[1]] + [c*2 for c in channels]
+#         channels = [data.x.shape[1]] + channels
 #         for i in range(len(channels)-1):
 #             conv_st = convType(channels_output[i], channels[i+1])
 #             self.add_module('conv_st'+str(i),conv_st)
@@ -199,7 +199,7 @@ class RGCN2(MessagePassing):
 #             self.add_module('conv_ts'+str(i),conv_ts)
 #             self.conv_ts.append(conv_ts)
 
-#         self.last = convType(channels_output[-1], dataset.num_classes)
+#         self.last = convType(channels_output[-1], len(set([x.item() for x in data.y])))
 
 #     def forward(self, data): 
 #         x, edge_index = data.x, data.edge_index
@@ -225,8 +225,8 @@ class RGCN2(MessagePassing):
 #         self.conv_st = []
 #         self.conv_ts = []
 #         self.conv = []
-#         channels_output = [dataset.num_node_features] + [c*3 for c in channels]
-#         channels = [dataset.num_node_features] + channels
+#         channels_output = [data.x.shape[1]] + [c*3 for c in channels]
+#         channels = [data.x.shape[1]] + channels
 #         for i in range(len(channels)-1):
 #             conv_st = convType(channels_output[i], channels[i+1])
 #             self.add_module('conv_st'+str(i),conv_st)
@@ -240,7 +240,7 @@ class RGCN2(MessagePassing):
 #             self.add_module('conv'+str(i),conv)
 #             self.conv.append(conv)
 
-#         self.last = convType(channels_output[-1], dataset.num_classes)
+#         self.last = convType(channels_output[-1], len(set([x.item() for x in data.y])))
 
 #     def forward(self, data): 
 #         x, edge_index = data.x, data.edge_index
