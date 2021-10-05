@@ -1,7 +1,31 @@
 # Network structure impact on graph neural networks
 
+### Papers
+This code is the basis for our
 
-Dependencies: to be added
+* [On the Impact of Communities on Semi-supervised Classification Using Graph Neural Networks](https://link.springer.com/chapter/10.1007/978-3-030-65351-4_2)
+* The Interplay between Communities and Homophily in Semi-supervised Classification Using Graph Neural Networks - [a preprint is currently available](https://sqrhussain.github.io/papers/apns21.pdf)
+
+
+### Citation
+```
+@inproceedings{hussain2020impact,
+  title={On the Impact of Communities on Semi-supervised Classification Using Graph Neural Networks},
+  author={Hussain, Hussain and Duricic, Tomislav and Lex, Elisabeth and Kern, Roman and Helic, Denis},
+  booktitle={International Conference on Complex Networks and Their Applications},
+  pages={15--26},
+  year={2020},
+  organization={Springer}
+}
+```
+
+
+### Dependencies
+`python >= 3.7`
+
+Please install [PyTorch](https://pytorch.org/get-started/locally/) and [PyG](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html), then run `pip install -r requirements.txt`.
+
+
 
 ### Datasets
 First, run `python -m src.data.dataset_handle` to download and transform the datasets. This works for Cora, Citeseer, WebKB and Pubmed without hassle. Needs some tweaks to work on other datasets (to be fixed/explained).

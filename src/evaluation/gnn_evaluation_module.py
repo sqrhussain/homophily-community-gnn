@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import torch
 from src.models.multi_layered_model import MonoModel, BiModel, TriModel
 from torch_geometric.nn import GCNConv, SAGEConv, GATConv, APPNP

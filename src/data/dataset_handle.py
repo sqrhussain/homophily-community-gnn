@@ -73,6 +73,7 @@ def create_citation_dataset(dataset_name, url, target_tmp_file, dir_path, target
     undirected_graph.add_edges_from(edges)
     # remove nodes with rare labels
     nodes = {u for u in undirected_graph.nodes() if class_count[target[u]] >= threshold}
+    undirected_graph = undirected_graph.subgraph(nodes)
     if select_largest_component:
         largest_component = max(nx.connected_components(undirected_graph), key=len)
         nodes = largest_component
@@ -161,7 +162,7 @@ def create_texas():
     target_raw = 'data/graphs/raw/WebKB.tgz'
     dir_path = 'data/graphs/raw'
     target_processed = 'data/graphs/processed'
-    create_citation_dataset(dataset_name, texas_url, target_raw, dir_path, target_processed, raw_folder_name = 'WebKB',threshold = 16)
+    create_citation_dataset(dataset_name, texas_url, target_raw, dir_path, target_processed, raw_folder_name = 'webkb',threshold = 16)
 
 def create_washington():
     dataset_name = 'washington'
@@ -169,7 +170,7 @@ def create_washington():
     target_raw = 'data/graphs/raw/WebKB.tgz'
     dir_path = 'data/graphs/raw'
     target_processed = 'data/graphs/processed'
-    create_citation_dataset(dataset_name, washington_url, target_raw, dir_path, target_processed, raw_folder_name = 'WebKB',threshold = 16)
+    create_citation_dataset(dataset_name, washington_url, target_raw, dir_path, target_processed, raw_folder_name = 'webkb',threshold = 16)
 
 def create_wisconsin():
     dataset_name = 'wisconsin'
@@ -177,7 +178,7 @@ def create_wisconsin():
     target_raw = 'data/graphs/raw/WebKB.tgz'
     dir_path = 'data/graphs/raw'
     target_processed = 'data/graphs/processed'
-    create_citation_dataset(dataset_name, wisconsin_url, target_raw, dir_path, target_processed, raw_folder_name = 'WebKB',threshold = 10)
+    create_citation_dataset(dataset_name, wisconsin_url, target_raw, dir_path, target_processed, raw_folder_name = 'webkb',threshold = 16)
 
 def create_cornell():
     dataset_name = 'cornell'
@@ -185,7 +186,7 @@ def create_cornell():
     target_raw = '../../data/graphs/raw/WebKB.tgz'
     dir_path = '../../data/graphs/raw'
     target_processed = '../../data/graphs/processed'
-    create_citation_dataset(dataset_name, cornell_url, target_raw, dir_path, target_processed, raw_folder_name = 'WebKB',threshold = 16)
+    create_citation_dataset(dataset_name, cornell_url, target_raw, dir_path, target_processed, raw_folder_name = 'webkb',threshold = 16)
 
 def create_pubmed():
     dataset_name = 'pubmed'
@@ -260,13 +261,19 @@ def merge_networks(directory, datasets, output_prefix):
                     outfile.write(line)
 
 def create_webkb():
-    merge_networks('data/graphs/raw/WebKB', 'texas cornell washington wisconsin'.split(),'data/graphs/interim/webkb/webkb') 
+    prefix = 'data/graphs/interim/webkb'
+    if not os.path.exists(prefix):
+        os.mkdir(prefix)
+    merge_networks('data/graphs/raw/webkb', 'texas cornell washington wisconsin'.split(),'data/graphs/interim/webkb/webkb') 
     create_citation_dataset('webkb', None, None, dir_path = 'data/graphs/interim',
                             target_processed_path = 'data/graphs/processed',
                             raw_folder_name = 'webkb', threshold=25,select_largest_component=False)
 
 def create_webkb_small():
-    merge_networks('data/graphs/raw/WebKB', 'texas cornell washington wisconsin'.split(),'data/graphs/interim/webkb_small/webkb_small') 
+    prefix = 'data/graphs/interim/webkb'
+    if not os.path.exists(prefix):
+        os.mkdir(prefix)
+    merge_networks('data/graphs/raw/webkb', 'texas cornell washington wisconsin'.split(),'data/graphs/interim/webkb_small/webkb_small') 
     create_citation_dataset('webkb_small', None, None, dir_path = 'data/graphs/interim',
                             target_processed_path = 'data/graphs/processed',
                             raw_folder_name = 'webkb_small', threshold=25,select_largest_component=False, sample_features=50)
@@ -400,12 +407,15 @@ def create_squirrel():
 if __name__ == '__main__':
     # create_actor()
     # create_chameleon()
-    create_squirrel()
+    # create_squirrel()
     # create_wiki_cs()
     # create_jigsaw_graph('validation_knn_40')
-    # create_webkb_small()
+    # create_webkb()#_small()
     #create_cornell()
-    #create_wisconsin()
+    create_wisconsin()
     #create_washington()
-    #create_texas()
+    create_texas()
     # create_twitter()
+    # create_cora()
+    # create_citeseer()
+    # create_pubmed()

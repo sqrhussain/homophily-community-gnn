@@ -262,7 +262,7 @@ def create_multiple_sbm_graphs(graph_path, community_path, output_prefix, output
 if __name__ == "__main__":
 
 
-    datasets = 'cora citeseer twitter webkb texas wisconsin cornell squirrel chameleon actor pubmed cora_full'.split()
+    datasets = 'cora citeseer texas wisconsin squirrel actor pubmed cora_full'.split()
     for dataset in datasets:
         # create_multiple_sbm_graphs(f'data/graphs/processed/{dataset}/{dataset}.cites',
         #                        f'data/community_id_dicts/{dataset}/{dataset}_louvain.pickle',
@@ -271,6 +271,8 @@ if __name__ == "__main__":
             os.mkdir(f'data/graphs/modsbm/')
         if not os.path.exists(f'data/graphs/modsbm/{dataset}/'):
             os.mkdir(f'data/graphs/modsbm/{dataset}/')
+        if not os.path.exists(f'data/community_id_dicts/{dataset}/'):
+            os.mkdir(f'data/community_id_dicts/{dataset}/')
         create_multiple_sbm_graphs(f'data/graphs/processed/{dataset}/{dataset}.cites',
                                 f'data/community_id_dicts/{dataset}/{dataset}_louvain.pickle',
                                 f'data/graphs/modsbm/{dataset}/{dataset}_modsbm',inits=10)
