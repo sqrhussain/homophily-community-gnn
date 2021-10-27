@@ -3,12 +3,25 @@
 ### Papers
 This code is the basis for our
 
+* [The Interplay between Communities and Homophily in Semi-supervised Classification Using Graph Neural Networks](https://appliednetsci.springeropen.com/articles/10.1007/s41109-021-00423-1)
 * [On the Impact of Communities on Semi-supervised Classification Using Graph Neural Networks](https://link.springer.com/chapter/10.1007/978-3-030-65351-4_2)
-* The Interplay between Communities and Homophily in Semi-supervised Classification Using Graph Neural Networks - [a preprint is currently available](https://sqrhussain.github.io/papers/apns21.pdf)
 
 
 ### Citation
 ```
+@article{Hussain2021,
+author = {Hussain, Hussain and Duricic, Tomislav and Lex, Elisabeth and Helic, Denis and Kern, Roman},
+doi = {10.1007/s41109-021-00423-1},
+file = {:home/hhussain/literature/s41109-021-00423-1.pdf:pdf},
+issn = {2364-8228},
+journal = {Applied Network Science},
+keywords = {Community structure,Graph neural networks,Homophily,Semi-supervised learning,community structure,graph neural networks,homophily,semi-},
+pages = {1--26},
+publisher = {Springer International Publishing},
+title = {{The interplay between communities and homophily in semi ‑ supervised classification using graph neural networks}},
+url = {https://doi.org/10.1007/s41109-021-00423-1},
+year = {2021}
+}
 @inproceedings{hussain2020impact,
   title={On the Impact of Communities on Semi-supervised Classification Using Graph Neural Networks},
   author={Hussain, Hussain and Duricic, Tomislav and Lex, Elisabeth and Kern, Roman and Helic, Denis},
